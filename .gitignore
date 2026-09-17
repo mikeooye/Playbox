@@ -8,3 +8,9 @@
 .externalNativeBuild
 .cxx
 app/build
+
+# Release signing material - keep local only, never commit
+keystore.properties
+keystore/
+*.jks
+*.keystore
