@@ -14,3 +14,6 @@ keystore.properties
 keystore/
 *.jks
 *.keystore
+
+# Local verification screenshots
+/screenshots
