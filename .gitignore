@@ -17,3 +17,13 @@ keystore/
 
 # Local verification screenshots
 /screenshots
+
+# Bundled Vosk speech model (~43 MB). Fetched automatically by the prepareVoskModel Gradle task.
+app/src/main/assets/vosk-model-cn.zip
+
+# Kotlin build artifacts
+.kotlin
+
+# Local Gradle home used by sandboxed builds; safe to delete
+/.gradle-home
+/.dsh-build.sh

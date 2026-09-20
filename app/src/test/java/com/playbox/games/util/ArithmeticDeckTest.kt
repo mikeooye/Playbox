@@ -39,20 +39,78 @@ class ArithmeticDeckTest {
     fun generatedProblemsRespectRangeAndSelectedOperators() {
         val operators = ArithmeticOperator.entries.toSet()
         repeat(500) { seed ->
-            val problem = randomArithmeticProblem(50, operators, Random(seed))
-            assertTrue(problem.left in 0..50)
-            assertTrue(problem.right in 0..50)
-            assertTrue(problem.answer in 0..50)
+            val problem = randomArithmeticProblem(0, 50, operators, Random(seed))
+            assertTrue("answer=${problem.answer}", problem.answer in 0..50)
+            assertTrue("left=${problem.left}", problem.left in 0..50)
+            assertTrue("right=${problem.right}", problem.right in 0..50)
             assertTrue(problem.operator in operators)
             assertEquals(problem.answer, evaluate(problem))
         }
     }
 
+    /** The range describes the answer; no number in the formula may be larger than its maximum. */
     @Test
-    fun divisionAlwaysProducesAnIntegerResult() {
-        repeat(200) { seed ->
-            val problem = randomArithmeticProblem(100, setOf(ArithmeticOperator.Divide), Random(seed))
+    fun answersStayInsideAnOffsetRange() {
+        val operators = ArithmeticOperator.entries.toSet()
+        repeat(500) { seed ->
+            val problem = randomArithmeticProblem(1, 20, operators, Random(seed))
+            assertTrue("answer=${problem.answer}", problem.answer in 1..20)
+            assertTrue("left=${problem.left}", problem.left in 0..20)
+            assertTrue("right=${problem.right}", problem.right in 0..20)
+            assertEquals(problem.answer, evaluate(problem))
+        }
+    }
+
+    @Test
+    fun tenToTwentyNeverExceedsTwenty() {
+        val operators = ArithmeticOperator.entries.toSet()
+        repeat(500) { seed ->
+            val problem = randomArithmeticProblem(10, 20, operators, Random(seed))
+            assertTrue("answer=${problem.answer}", problem.answer in 10..20)
+            assertTrue("left=${problem.left}", problem.left <= 20)
+            assertTrue("right=${problem.right}", problem.right <= 20)
+        }
+    }
+
+    @Test
+    fun subtractionNeverGoesNegative() {
+        repeat(500) { seed ->
+            val problem = randomArithmeticProblem(1, 20, setOf(ArithmeticOperator.Subtract), Random(seed))
+            assertTrue(problem.left >= problem.right)
+            assertTrue(problem.answer in 1..20)
+            assertTrue(problem.left <= 20)
+        }
+    }
+
+    @Test
+    fun multiplicationStaysInsideTheRange() {
+        repeat(500) { seed ->
+            val problem = randomArithmeticProblem(1, 20, setOf(ArithmeticOperator.Multiply), Random(seed))
+            assertTrue("answer=${problem.answer}", problem.answer in 1..20)
+            assertTrue(problem.left <= 20)
+            assertTrue(problem.right <= 20)
+            assertEquals(problem.answer, problem.left * problem.right)
+        }
+    }
+
+    @Test
+    fun divisionAlwaysProducesAnIntegerResultInsideTheRange() {
+        repeat(500) { seed ->
+            val problem = randomArithmeticProblem(10, 100, setOf(ArithmeticOperator.Divide), Random(seed))
             assertTrue(problem.right > 0)
+            assertTrue("answer=${problem.answer}", problem.answer in 10..100)
+            assertTrue("dividend=${problem.left}", problem.left in 0..100)
+            assertEquals(0, problem.left % problem.right)
+            assertEquals(problem.answer, problem.left / problem.right)
+        }
+    }
+
+    @Test
+    fun divisionStillWorksWhenTheRangeStartsAtZero() {
+        repeat(500) { seed ->
+            val problem = randomArithmeticProblem(0, 100, setOf(ArithmeticOperator.Divide), Random(seed))
+            assertTrue(problem.right > 0)
+            assertTrue(problem.answer in 0..100)
             assertEquals(0, problem.left % problem.right)
             assertEquals(problem.answer, problem.left / problem.right)
         }
@@ -62,6 +120,7 @@ class ArithmeticDeckTest {
     fun formulaDeckContainsRequestedNumberOfUniqueProblems() {
         val deck = newArithmeticFormulaDeck(
             count = 12,
+            minValue = 0,
             maxValue = 20,
             operators = setOf(ArithmeticOperator.Add, ArithmeticOperator.Subtract),
             random = Random(18),
@@ -69,6 +128,28 @@ class ArithmeticDeckTest {
 
         assertEquals(12, deck.size)
         assertEquals(deck.size, deck.distinct().size)
+    }
+
+    @Test
+    fun formulaDeckKeepsAnswersInsideTheConfiguredRange() {
+        val deck = newArithmeticFormulaDeck(
+            count = 20,
+            minValue = 10,
+            maxValue = 20,
+            operators = setOf(ArithmeticOperator.Add, ArithmeticOperator.Subtract),
+            random = Random(24),
+        )
+
+        assertEquals(20, deck.size)
+        assertTrue(deck.all { it.answer in 10..20 })
+        assertTrue(deck.all { it.left <= 20 && it.right <= 20 })
+    }
+
+    @Test
+    fun rangeHelperSnapsBoundsIntoValidLimits() {
+        assertEquals(ArithmeticRange(0, 1), arithmeticRange(-5, 0))
+        assertEquals(ArithmeticRange(0, 100), arithmeticRange(0, 100))
+        assertEquals(ArithmeticRange(99, 100), arithmeticRange(120, 120))
     }
 
     private fun evaluate(problem: ArithmeticProblem): Int = when (problem.operator) {

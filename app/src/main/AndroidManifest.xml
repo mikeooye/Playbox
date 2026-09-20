@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Offline dictation for the arithmetic tool: the child says the answer out loud and the
+         bundled on-device recogniser judges it instead of a tapped keypad. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
+
     <application
         android:allowBackup="true"
         android:icon="@drawable/app_icon"

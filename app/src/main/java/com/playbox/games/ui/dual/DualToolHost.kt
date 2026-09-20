@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.playbox.games.ui.ToolKind
 import com.playbox.games.ui.arithmetic.ArithmeticScreen
+import com.playbox.games.ui.pinyin.PinyinScreen
 import com.playbox.games.ui.components.LandscapeOrientationLock
 import com.playbox.games.ui.dice.DiceScreen
 import com.playbox.games.ui.rabbittrap.RabbitTrapScreen
@@ -83,5 +84,6 @@ private fun CompactTool(tool: ToolKind, onBack: (() -> Unit)?) {
         ToolKind.Dice -> DiceScreen(onBack = onBack, compact = true)
         ToolKind.RabbitTrap -> RabbitTrapScreen(onBack = onBack, compact = true)
         ToolKind.Arithmetic -> ArithmeticScreen(onBack = onBack, compact = true)
+        ToolKind.Pinyin -> PinyinScreen(onBack = onBack, compact = true)
     }
 }

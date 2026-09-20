@@ -124,7 +124,7 @@ fun PlayboxBackground(dark: Boolean = false, content: @Composable () -> Unit) {
     }
 }
 
-enum class ToolIcon { Dice, Rabbit, Arithmetic }
+enum class ToolIcon { Dice, Rabbit, Arithmetic, Pinyin }
 
 @Composable
 fun ToolCard(icon: ToolIcon, title: String, subtitle: String, accent: Color, onClick: () -> Unit) {
@@ -170,6 +170,7 @@ private fun ToolIconArtwork(icon: ToolIcon, accent: Color) {
             ToolIcon.Dice -> DiceToolIcon(accent)
             ToolIcon.Rabbit -> RabbitToolIcon(accent)
             ToolIcon.Arithmetic -> ArithmeticToolIcon(accent)
+            ToolIcon.Pinyin -> PinyinToolIcon(accent)
         }
     }
 }
@@ -213,6 +214,18 @@ private fun RabbitToolIcon(accent: Color) {
         drawCircle(outline, radius = size.width * .035f, center = androidx.compose.ui.geometry.Offset(size.width * .61f, size.height * .55f))
         drawCircle(accent, radius = size.width * .055f, center = androidx.compose.ui.geometry.Offset(size.width * .5f, size.height * .67f))
         drawArc(outline, 15f, 150f, false, topLeft = androidx.compose.ui.geometry.Offset(size.width * .37f, size.height * .64f), size = androidx.compose.ui.geometry.Size(size.width * .26f, size.height * .18f), style = Stroke(width = 3.dp.toPx()))
+    }
+}
+
+@Composable
+private fun PinyinToolIcon(accent: Color) {
+    Box(
+        modifier = Modifier
+            .size(64.dp)
+            .background(Color.White, RoundedCornerShape(20.dp)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("ā", color = accent, fontSize = 38.sp, fontWeight = FontWeight.Black)
     }
 }
 

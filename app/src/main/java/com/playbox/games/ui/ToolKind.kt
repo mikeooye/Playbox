@@ -4,4 +4,5 @@ enum class ToolKind(val title: String, val emoji: String, val supportsDualMode: 
     Dice("幸运骰子", "🎲"),
     RabbitTrap("兔子陷阱棋", "🐇"),
     Arithmetic("四则运算", "➗", supportsDualMode = false),
+    Pinyin("拼音跟读", "🔤", supportsDualMode = false),
 }

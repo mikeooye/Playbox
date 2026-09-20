@@ -15,12 +15,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.playbox.games.ui.dice.DiceScreen
 import com.playbox.games.ui.arithmetic.ArithmeticScreen
+import com.playbox.games.ui.pinyin.PinyinScreen
 import com.playbox.games.ui.dual.AddToolSheet
 import com.playbox.games.ui.dual.DualToolHost
 import com.playbox.games.ui.home.HomeScreen
 import com.playbox.games.ui.rabbittrap.RabbitTrapScreen
 
-private enum class Destination { Home, Dice, RabbitTrap, Arithmetic, Dual }
+private enum class Destination { Home, Dice, RabbitTrap, Arithmetic, Pinyin, Dual }
 
 @Composable
 fun PlayboxApp() {
@@ -46,6 +47,7 @@ fun PlayboxApp() {
                 onOpenDice = { destination = Destination.Dice },
                 onOpenRabbitTrap = { destination = Destination.RabbitTrap },
                 onOpenArithmetic = { destination = Destination.Arithmetic },
+                onOpenPinyin = { destination = Destination.Pinyin },
             )
             Destination.Dice -> DiceScreen(
                 onBack = { destination = Destination.Home },
@@ -56,6 +58,9 @@ fun PlayboxApp() {
                 onAddTool = { addingTo = ToolKind.RabbitTrap },
             )
             Destination.Arithmetic -> ArithmeticScreen(
+                onBack = { destination = Destination.Home },
+            )
+            Destination.Pinyin -> PinyinScreen(
                 onBack = { destination = Destination.Home },
             )
             Destination.Dual -> dualPair?.let { pair ->

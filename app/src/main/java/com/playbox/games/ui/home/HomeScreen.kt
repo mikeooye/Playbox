@@ -24,13 +24,19 @@ private data class HomeTool(
 )
 
 @Composable
-fun HomeScreen(onOpenDice: () -> Unit, onOpenRabbitTrap: () -> Unit, onOpenArithmetic: () -> Unit) {
+fun HomeScreen(
+    onOpenDice: () -> Unit,
+    onOpenRabbitTrap: () -> Unit,
+    onOpenArithmetic: () -> Unit,
+    onOpenPinyin: () -> Unit,
+) {
     PlayboxBackground {
         PlayboxScaffold(title = "欢乐工具箱") { contentModifier ->
             val tools = listOf(
                 HomeTool("幸运骰子", "摇出 1–6", ToolIcon.Dice, MaterialTheme.colorScheme.secondary, onOpenDice),
                 HomeTool("兔子陷阱棋", "抽取行动卡", ToolIcon.Rabbit, Color(0xFF38A875), onOpenRabbitTrap),
                 HomeTool("四则运算", "逐题练习", ToolIcon.Arithmetic, Color(0xFF5B67D8), onOpenArithmetic),
+                HomeTool("拼音跟读", "读出音节", ToolIcon.Pinyin, Color(0xFFE0803C), onOpenPinyin),
             )
             LazyVerticalGrid(
                 columns = GridCells.Fixed(2),

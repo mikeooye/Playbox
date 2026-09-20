@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>骰子 Lottie 随机六面 — 可行性演示</title>
+<style>
+  :root {
+    --ink: #1f2430;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --card: #ffffff;
+    --bg: #f5f6f8;
+    --accent: #4f46e5;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 32px 20px 56px;
+    background: var(--bg); color: var(--ink);
+    font: 15px/1.6 -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 6px; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 18px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .card h2 { font-size: 15px; margin: 0; }
+  .tag {
+    display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px;
+    background: #eef2ff; color: #4338ca; margin-left: 6px; vertical-align: 1px;
+  }
+  .tag.bad { background: #fef2f2; color: #b91c1c; }
+  .stage {
+    position: relative; aspect-ratio: 1 / 1; border-radius: 12px;
+    background: repeating-conic-gradient(#f1f2f4 0% 25%, #e9eaee 0% 50%) 50% / 18px 18px;
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  video, canvas { width: 100%; height: 100%; display: block; }
+  .result {
+    font-size: 13px; color: var(--muted); min-height: 20px;
+  }
+  .result b { color: var(--ink); font-size: 18px; }
+  button {
+    font: inherit; padding: 10px 16px; border-radius: 10px; border: 1px solid var(--accent);
+    background: var(--accent); color: #fff; cursor: pointer;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  button.ghost { background: #fff; color: var(--accent); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .die2d { display: block; margin: 0 auto; }
+  ul { margin: 4px 0 0; padding-left: 20px; color: var(--muted); }
+  code { background: #f3f4f6; padding: 1px 5px; border-radius: 5px; font-size: 13px; }
+  .note { font-size: 13px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>骰子 Lottie 能不能做 6 面随机？</h1>
+  <p class="sub">左边是原始 <code>dice 6.lottie</code> 的真实播放结果，右边是对照实现。结论：这份文件的落点面是画死的，随机逻辑必须加在文件之外。</p>
+
+  <div class="grid">
+    <section class="card">
+      <h2>原始 Lottie（未改动）<span class="tag bad">落点固定</span></h2>
+      <div class="stage">
+        <video id="lottie" src="dice-spin.webm" muted playsinline preload="auto"></video>
+      </div>
+      <div class="result" id="lottieResult">点“投掷”播放 3 秒动画。它会停在同一个面。</div>
+      <div class="row">
+        <button id="rollOriginal">投掷</button>
+        <span class="note" id="counter"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>正确的随机做法<span class="tag">点数真的随机</span></h2>
+      <div class="stage">
+        <canvas id="die" class="die2d" width="320" height="320"></canvas>
+      </div>
+      <div class="result" id="randomResult">点击投掷：点数先由 <code>random(1..6)</code> 决定，再播放对应的落定姿势。</div>
+      <div class="row">
+        <button id="rollRandom">投掷</button>
+        <button class="ghost" id="roll100">连投 100 次统计</button>
+      </div>
+      <div class="note" id="stats"></div>
+    </section>
+  </div>
+
+  <section class="card" style="margin-top:20px">
+    <h2>这份文件的实测结论</h2>
+    <ul>
+      <li>格式：<code>.lottie</code> = 一个 zip，里面只有 <b>1</b> 个动画（512×512，60fps，180 帧）。你给的 <code>dice 6.json</code> 与它 <b>完全一致</b>（逐字节相同），所以换格式不能改变结论。</li>
+      <li>0–100 帧：骰子翻滚，点数带运动模糊（<code>dots_blur_v1/v2</code> 做拖尾）。</li>
+      <li>104–179 帧：真实 3D 骰子落定。落定姿势由三组面图层拼成：顶面 <code>6_ 5</code>（点阵来自 <code>rotator 2</code> 下的 6 个 <code>dot</code>）、左面 <code>5_ 2</code>、右面 <code>3_ 5</code>。</li>
+      <li>所以每次播放都停在 <b>同一个面</b>：把动画原样循环多少次，结果都不会变。</li>
+      <li>要真随机，必须让落点成为变量：AE 里做 6 个落定姿势（或 6 份动画），代码里随机选一个播放。</li>
+    </ul>
+  </section>
+</div>
+
+<script>
+const PIPS = {
+  1: [[1, 1]],
+  2: [[0, 0], [2, 2]],
+  3: [[0, 0], [1, 1], [2, 2]],
+  4: [[0, 0], [2, 0], [0, 2], [2, 2]],
+  5: [[0, 0], [2, 0], [1, 1], [0, 2], [2, 2]],
+  6: [[0, 0], [2, 0], [0, 1], [2, 1], [0, 2], [2, 2]],
+};
+
+const video = document.getElementById('lottie');
+const lottieResult = document.getElementById('lottieResult');
+const counterEl = document.getElementById('counter');
+const rollOriginal = document.getElementById('rollOriginal');
+let plays = 0;
+
+rollOriginal.addEventListener('click', () => {
+  video.currentTime = 0;
+  video.play();
+  plays += 1;
+  counterEl.textContent = `已播放 ${plays} 次`;
+  lottieResult.innerHTML = '动画播放中…（3 秒）';
+});
+
+video.addEventListener('ended', () => {
+  // the source animation always lands on the same face
+  lottieResult.innerHTML = '落定：<b>固定面</b>（每次都一样，与随机无关）';
+});
+
+const canvas = document.getElementById('die');
+const ctx = canvas.getContext('2d');
+const randomResult = document.getElementById('randomResult');
+const statsEl = document.getElementById('stats');
+
+let rolling = false;
+let angle = 0;
+let currentValue = 6;
+
+function drawDie(value, rot, scale) {
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  const s = Math.min(w, h) * 0.56 * scale;
+  const cx = w / 2, cy = h / 2;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(rot);
+  ctx.scale(1, 0.92);
+
+  const r = 22;
+  ctx.beginPath();
+  ctx.moveTo(-s / 2 + r, -s / 2);
+  ctx.arcTo(s / 2, -s / 2, s / 2, s / 2, r);
+  ctx.arcTo(s / 2, s / 2, -s / 2, s / 2, r);
+  ctx.arcTo(-s / 2, s / 2, -s / 2, -s / 2, r);
+  ctx.arcTo(-s / 2, -s / 2, s / 2, -s / 2, r);
+  ctx.closePath();
+  const g = ctx.createLinearGradient(-s / 2, -s / 2, s / 2, s / 2);
+  g.addColorStop(0, '#ffffff');
+  g.addColorStop(1, '#e8eaf0');
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#c8ccd8';
+  ctx.stroke();
+
+  const cell = s / 3;
+  const pr = s * 0.085;
+  for (const [px, py] of PIPS[value]) {
+    const x = -s / 2 + cell * (px + 0.5);
+    const y = -s / 2 + cell * (py + 0.5);
+    const pg = ctx.createRadialGradient(x - pr * 0.3, y - pr * 0.3, pr * 0.2, x, y, pr);
+    pg.addColorStop(0, '#5c5c66');
+    pg.addColorStop(1, '#16161a');
+    ctx.beginPath();
+    ctx.arc(x, y, pr, 0, Math.PI * 2);
+    ctx.fillStyle = pg;
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+function animateRoll(targetValue, done) {
+  if (rolling) return;
+  rolling = true;
+  const start = performance.now();
+  const duration = 1100;
+  const turns = 3 + Math.random() * 2;
+  const startAngle = angle;
+
+  function frame(now) {
+    const t = Math.min(1, (now - start) / duration);
+    const ease = 1 - Math.pow(1 - t, 3);
+    angle = startAngle + turns * Math.PI * 2 * ease;
+    const scale = 1 + 0.12 * Math.sin(Math.PI * t);
+    const shown = t < 0.8 ? (1 + Math.floor(Math.random() * 6)) : targetValue;
+    drawDie(shown, angle, scale);
+    if (t < 1) {
+      requestAnimationFrame(frame);
+    } else {
+      angle = startAngle + turns * Math.PI * 2;
+      drawDie(targetValue, 0, 1);
+      rolling = false;
+      done && done();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+// the real pattern: the value is decided first, then the matching landing plays
+function rollOnce() {
+  const value = 1 + Math.floor(Math.random() * 6);
+  animateRoll(value, () => {
+    currentValue = value;
+    randomResult.innerHTML = `点数：<b>${value}</b>（先随机出点数，再播对应落定姿势）`;
+  });
+  return value;
+}
+
+document.getElementById('rollRandom').addEventListener('click', rollOnce);
+
+document.getElementById('roll100').addEventListener('click', () => {
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+  for (let i = 0; i < 100; i++) counts[1 + Math.floor(Math.random() * 6)] += 1;
+  statsEl.textContent = '100 次分布：' + counts.slice(1).map((c, i) => `${i + 1}点 ${c}`).join('　');
+});
+
+drawDie(currentValue, 0, 1);
+</script>
+</body>
+</html>
