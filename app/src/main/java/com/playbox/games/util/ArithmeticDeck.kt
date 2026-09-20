@@ -52,37 +52,24 @@ fun arithmeticRange(min: Int, max: Int): ArithmeticRange {
 }
 
 /**
- * The fixed 0~20 problem bank behind [newArithmeticDeck]. The interactive deck is built by
- * [newArithmeticFormulaDeck], which can honour any configured range and operator mix.
- */
-val arithmeticProblemBank: List<ArithmeticProblem> = buildList {
-    for (left in 0..20) {
-        for (right in left..(20 - left)) {
-            add(ArithmeticProblem(left, ArithmeticOperator.Add, right, left + right))
-        }
-    }
-    for (left in 0..20) {
-        for (right in 0..left) {
-            add(ArithmeticProblem(left, ArithmeticOperator.Subtract, right, left - right))
-        }
-    }
-}
-
-fun newArithmeticDeck(count: Int, random: Random = Random.Default): List<ArithmeticProblem> {
-    require(count in 1..arithmeticProblemBank.size)
-    val additionCount = (count + 1) / 2
-    val subtractionCount = count / 2
-    val additions = arithmeticProblemBank.filter { it.operator == ArithmeticOperator.Add }.shuffled(random).take(additionCount)
-    val subtractions = arithmeticProblemBank.filter { it.operator == ArithmeticOperator.Subtract }.shuffled(random).take(subtractionCount)
-    return (additions + subtractions).shuffled(random)
-}
-
-/**
  * Builds one problem whose answer sits inside [minValue]..[maxValue] while every number used by
  * the formula stays at or below [maxValue].
  *
  * Every operator is exact by construction: subtraction never goes below zero and division always
  * divides evenly, so the answer is always a whole number inside the requested range.
+ *
+ * Each operator also skips the questions a child learns nothing from, by drawing its answer from
+ * the window where the formula can avoid a degenerate operand:
+ *
+ * - `+` splits the answer into two non-zero addends, so `0 + n` only survives when the answer is
+ *   too small to split (0 or 1).
+ * - `−` keeps the subtrahend at one or more, which rules out `n − 0` entirely; the price is that
+ *   the very top of the range is reached through addition instead.
+ * - `×` draws the answer from the values that factorise into two numbers greater than one, so
+ *   `1 × n` only survives on ranges with no such value at all (1~3, for example).
+ * - `÷` prefers a divisor of two or more, so `n ÷ 1` only appears when the range has no room for
+ *   a larger one (for example 15~20, where the answer is at least 15 but the dividend may not
+ *   pass 20).
  */
 fun randomArithmeticProblem(
     minValue: Int,
@@ -93,38 +80,60 @@ fun randomArithmeticProblem(
     val range = ArithmeticRange(minValue, maxValue)
     require(operators.isNotEmpty()) { "at least one operator is required" }
     val operator = operators.random(random)
-    val answer = random.nextInt(range.min, range.max + 1)
     return when (operator) {
         ArithmeticOperator.Add -> {
             // left + right = answer, so neither addend can exceed the answer.
-            val left = random.nextInt(0, answer + 1)
+            val answer = random.nextInt(range.min, range.max + 1)
+            val left = if (answer >= 2) random.nextInt(1, answer) else random.nextInt(0, answer + 1)
             ArithmeticProblem(left, operator, answer - left, answer)
         }
         ArithmeticOperator.Subtract -> {
-            // left - right = answer, with left kept inside the range maximum.
-            val right = random.nextInt(0, range.max - answer + 1)
+            // left - right = answer, with left kept inside the range maximum. Asking for a
+            // subtrahend of at least one needs an answer below the maximum, which always exists
+            // because a range requires max > min.
+            val answer = random.nextInt(range.min, range.max)
+            val right = random.nextInt(1, range.max - answer + 1)
             ArithmeticProblem(answer + right, operator, right, answer)
         }
         ArithmeticOperator.Multiply -> {
-            if (answer == 0) {
-                ArithmeticProblem(0, operator, random.nextInt(0, range.max + 1), 0)
+            // Answers that factorise into two numbers greater than one, so the question is never
+            // just "n × 1". When the range holds no such answer (1~3, say), every split is trivial
+            // and the plain range is used instead.
+            val factorable = (range.min..range.max).filter { answer ->
+                answer >= 4 && (2..answer / 2).any { factor -> answer % factor == 0 }
+            }
+            val answer = if (factorable.isEmpty()) {
+                random.nextInt(range.min, range.max + 1)
             } else {
-                val factors = (1..answer).filter { answer % it == 0 }
-                val left = factors.random(random)
+                factorable.random(random)
+            }
+            if (answer == 0) {
+                ArithmeticProblem(0, operator, nontrivialFactor(range.max, random), 0)
+            } else {
+                val factors = (2..answer / 2).filter { answer % it == 0 }
+                val left = if (factors.isEmpty()) answer else factors.random(random)
                 ArithmeticProblem(left, operator, answer / left, answer)
             }
         }
         ArithmeticOperator.Divide -> {
+            // Staying at or below half the range leaves room for a divisor of at least two.
+            val ceiling = maxOf(range.min, range.max / 2)
+            val answer = random.nextInt(range.min, ceiling + 1)
             if (answer == 0) {
-                ArithmeticProblem(0, operator, random.nextInt(1, range.max + 1), 0)
+                ArithmeticProblem(0, operator, nontrivialFactor(range.max, random), 0)
             } else {
                 // dividend = answer * divisor, which stays inside the range maximum.
-                val divisor = random.nextInt(1, range.max / answer + 1)
+                val maxDivisor = range.max / answer
+                val divisor = if (maxDivisor >= 2) random.nextInt(2, maxDivisor + 1) else 1
                 ArithmeticProblem(answer * divisor, operator, divisor, answer)
             }
         }
     }
 }
+
+/** Two or more when the range has room for it, so `0 × n` / `0 ÷ n` avoid a trivial operand. */
+private fun nontrivialFactor(maxValue: Int, random: Random): Int =
+    if (maxValue >= 2) random.nextInt(2, maxValue + 1) else 1
 
 fun newArithmeticFormulaDeck(
     count: Int,

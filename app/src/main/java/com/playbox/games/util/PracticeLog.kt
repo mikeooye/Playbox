@@ -1,5 +1,9 @@
 package com.playbox.games.util
 
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
 /** One judged attempt at a prompt: what was heard, whether it was right, and how long it took. */
 data class PracticeAttempt(
     val heard: String,
@@ -24,12 +28,19 @@ data class PracticeQuestionRecord(
 
     /** How long the card took until it was answered correctly the first time. */
     val firstCorrectMillis: Long? get() = correctTimesMillis.firstOrNull()
+    val lastCorrectMillis: Long? get() = correctTimesMillis.lastOrNull()
+    val bestCorrectMillis: Long? get() = correctTimesMillis.minOrNull()
+
+    /** Average time across the attempts that were right, slower ones included. */
+    val averageCorrectMillis: Long?
+        get() = correctTimesMillis.takeIf { it.isNotEmpty() }?.let { it.sum() / it.size }
     val lastAnsweredAtMillis: Long? get() = attempts.lastOrNull()?.answeredAtMillis
 }
 
 /**
- * Immutable log of one practice round, shared by the tools that are not arithmetic. Every answer
- * folds into a new instance so it can drive Compose state directly.
+ * Immutable log of one practice round, shared by every practice tool: the arithmetic deck answers
+ * with a number, the pinyin reader with a syllable, and both record the same shape of attempt.
+ * Every answer folds into a new instance so it can drive Compose state directly.
  */
 data class PracticeSessionLog(
     val recordsByIndex: Map<Int, PracticeQuestionRecord> = emptyMap(),
@@ -75,9 +86,22 @@ data class PracticeSessionLog(
     val totalAttempts: Int get() = totalCorrect + totalWrong
     val totalElapsedMillis: Long get() = records.sumOf { it.totalElapsedMillis }
 
+    /** Time spent on answers that turned out to be right. */
+    val totalCorrectMillis: Long get() = records.sumOf { record -> record.correctTimesMillis.sum() }
+
     val accuracy: Float
         get() = if (totalAttempts == 0) 0f else totalCorrect.toFloat() / totalAttempts
 
+    /** Average time across every successful answer, slower repeats included. */
+    val averageCorrectMillis: Long?
+        get() = records.flatMap { it.correctTimesMillis }
+            .takeIf { it.isNotEmpty() }
+            ?.let { times -> times.sum() / times.size }
+
+    /**
+     * Average time a question took to be answered correctly. Every question counts once, so a
+     * question repeated later does not skew the reference used to flag slow answers.
+     */
     val averageFirstCorrectMillis: Long?
         get() = records.mapNotNull { it.firstCorrectMillis }
             .takeIf { it.isNotEmpty() }
@@ -87,3 +111,17 @@ data class PracticeSessionLog(
         val Empty = PracticeSessionLog()
     }
 }
+
+/** "3.4 秒" / "1 分 05 秒", with a plain millisecond fallback below one second. */
+fun formatElapsed(millis: Long): String {
+    val safeMillis = millis.coerceAtLeast(0L)
+    if (safeMillis < 1_000L) return "$safeMillis 毫秒"
+    val totalSeconds = safeMillis / 1_000.0
+    if (totalSeconds < 60.0) return String.format(Locale.US, "%.1f 秒", totalSeconds)
+    val minutes = safeMillis / 60_000L
+    val seconds = (safeMillis % 60_000L) / 1_000L
+    return String.format(Locale.US, "%d 分 %02d 秒", minutes, seconds)
+}
+
+/** Wall-clock stamp of an answer, used in the per-question history. */
+fun formatClockTime(millis: Long): String = SimpleDateFormat("HH:mm:ss", Locale.US).format(Date(millis))

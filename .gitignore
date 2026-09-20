@@ -24,6 +24,7 @@ app/src/main/assets/vosk-model-cn.zip
 # Kotlin build artifacts
 .kotlin
 
-# Local Gradle home used by sandboxed builds; safe to delete
+# Local Gradle/AGP homes used by sandboxed builds; safe to delete
 /.gradle-home
+/.android-home
 /.dsh-build.sh

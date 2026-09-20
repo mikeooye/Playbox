@@ -3,31 +3,24 @@ package com.playbox.games.ui.pinyin
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -47,24 +40,35 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.playbox.games.ui.components.AboveAverageAccent
+import com.playbox.games.ui.components.AdvanceDelayMillis
+import com.playbox.games.ui.components.CardCorrectColor
+import com.playbox.games.ui.components.CardFirstWrongColor
+import com.playbox.games.ui.components.CardNeutralColor
+import com.playbox.games.ui.components.CardSecondWrongColor
+import com.playbox.games.ui.components.CorrectAccent
+import com.playbox.games.ui.components.FinishSummary
 import com.playbox.games.ui.components.MicToggle
 import com.playbox.games.ui.components.PlayboxBackground
 import com.playbox.games.ui.components.PlayboxScaffold
+import com.playbox.games.ui.components.RoundActionButton
+import com.playbox.games.ui.components.RoundHint
+import com.playbox.games.ui.components.StackedCardDeck
+import com.playbox.games.ui.components.WrongAccent
 import com.playbox.games.ui.dictation.DictationPhase
 import com.playbox.games.ui.dictation.hasRecordPermission
 import com.playbox.games.ui.dictation.rememberDictationEngine
 import com.playbox.games.ui.theme.PlayboxTokens
+import com.playbox.games.util.PassOutcome
 import com.playbox.games.util.PinyinCardCounts
 import com.playbox.games.util.PinyinSyllable
 import com.playbox.games.util.PracticeQuestionRecord
@@ -72,6 +76,7 @@ import com.playbox.games.util.PracticeSessionLog
 import com.playbox.games.util.formatClockTime
 import com.playbox.games.util.formatElapsed
 import com.playbox.games.util.newPinyinDeck
+import com.playbox.games.util.nextPass
 import com.playbox.games.util.UnknownWord
 import com.playbox.games.util.isCorrectReading
 import com.playbox.games.util.pinyinCardGrammarJson
@@ -80,40 +85,19 @@ import kotlinx.coroutines.delay
 /** A card is missed twice before it reddens and moves on, exactly like the arithmetic deck. */
 private const val MaxWrongAttempts = 2
 
-/** How long a finished card stays on screen before it lifts away. */
-private const val AdvanceDelayMillis = 500L
-
-private const val CardSlideDurationMillis = 250
-private const val CardSlideRiseRatio = .2f
-
-/** Share of the slide after which the leaving card starts to fade away. */
-private const val CardFadeStartRatio = .55f
-
-/** The card only dissolves near the end, once it has already lifted most of the way out. */
-private fun cardFadeAlpha(progress: Float): Float =
-    (1f - ((progress - CardFadeStartRatio) / (1f - CardFadeStartRatio))).coerceIn(0f, 1f)
-private val CardSlideEasing = CubicBezierEasing(.4f, 0f, .2f, 1f)
-
 private const val CardAspectRatio = 1.55f
 private const val RepeatedUtteranceGuardMillis = 600L
 
 /** A drawn out syllable arrives as two pieces; a miss is held this long so they can be merged. */
 private const val UtteranceMergeWindowMillis = 900L
 
-private const val StackDepth = 3
+// How the deck is stacked: the cards behind the top one sit only a hair lower and a hair
+// smaller, so a thin edge is all that shows.
 private const val StackGapRatio = .012f
 private const val StackScaleStep = .02f
 
 private val CardLayoutReserve = 200.dp
 private val BottomEdgeGuard = 46.dp
-
-private val CardNeutralColor = Color.White
-private val CardFirstWrongColor = Color(0xFFFFB74D)
-private val CardSecondWrongColor = Color(0xFFE53935)
-private val CardCorrectColor = Color(0xFF66D19E)
-private val CorrectAccent = Color(0xFF66D19E)
-private val WrongAccent = Color(0xFFFFB74D)
-private val AboveAverageAccent = Color(0xFFFF8A65)
 
 private enum class RoundPhase { Idle, Preparing, Running, Finished }
 
@@ -247,23 +231,25 @@ fun PinyinScreen(onBack: (() -> Unit)?, compact: Boolean = false) {
      * before the round ends.
      */
     val proceedAfterPass: (Long) -> Unit = { now ->
-        val failed = orderedSources.filter { sessionLog.correctCount(it) == 0 }
-        if (!isRetryPass && failed.isNotEmpty()) {
-            ordered = failed.map { deck[it] }
-            orderedSources = failed
-            targetIndex = 0
-            isRetryPass = true
-            retryHintVisible = true
-            sliding = false
-            awaitingAdvance = false
-            advanceSequence = 0
-            feedbackCorrect = false
-            wrongCount = 0
-            heardText = null
-            lastJudgedHeard = null
-            questionStartedAtMillis = now
-        } else {
-            finishRound(now)
+        // The retry pass asks the questions that were never right, in deck order.
+        val missed = orderedSources.filter { sessionLog.correctCount(it) == 0 }
+        when (val outcome = nextPass(missed, isRetryPass)) {
+            is PassOutcome.Retry -> {
+                ordered = outcome.indices.map { deck[it] }
+                orderedSources = outcome.indices
+                targetIndex = 0
+                isRetryPass = true
+                retryHintVisible = true
+                sliding = false
+                awaitingAdvance = false
+                advanceSequence = 0
+                feedbackCorrect = false
+                wrongCount = 0
+                heardText = null
+                lastJudgedHeard = null
+                questionStartedAtMillis = now
+            }
+            PassOutcome.Finished -> finishRound(now)
         }
     }
 
@@ -383,14 +369,6 @@ fun PinyinScreen(onBack: (() -> Unit)?, compact: Boolean = false) {
         }
     }
 
-    // TEMP-VERIFICATION-HOOK
-    LaunchedEffect(roundPhase, targetIndex, awaitingAdvance, sliding, isRetryPass) {
-        if (roundPhase == RoundPhase.Running && !awaitingAdvance && !sliding) {
-            delay(400L)
-            submitAnswer("[unk]")
-        }
-    }
-
     PlayboxBackground(dark = true) {
         PlayboxScaffold(
             title = "",
@@ -442,17 +420,29 @@ fun PinyinScreen(onBack: (() -> Unit)?, compact: Boolean = false) {
                     cardHeight = cardWidth * CardAspectRatio
                 }
                 Box(contentAlignment = Alignment.Center) {
-                    PinyinCardStack(
-                        deck = ordered,
+                    StackedCardDeck(
+                        items = ordered,
                         targetIndex = targetIndex,
                         sliding = sliding,
-                        showFace = roundPhase == RoundPhase.Running,
-                        cardColor = cardColor,
-                        cardTextColor = cardTextColor,
                         cardWidth = cardWidth,
                         cardHeight = cardHeight,
+                        stackGapRatio = StackGapRatio,
+                        scaleStep = StackScaleStep,
+                        frontColor = cardColor,
+                        frontTextColor = cardTextColor,
+                        showFace = roundPhase == RoundPhase.Running,
                         onSlideFinished = onSlideFinished,
-                    )
+                    ) { syllable, style, modifier ->
+                        PinyinCardFace(
+                            syllable = syllable,
+                            faceVisible = style.faceVisible,
+                            cardColor = style.color,
+                            textColor = style.textColor,
+                            cardWidth = cardWidth,
+                            cardHeight = cardHeight,
+                            modifier = modifier,
+                        )
+                    }
                     when (roundPhase) {
                         RoundPhase.Idle -> RoundActionButton(text = "开始", onClick = {
                             if (!hasMicPermission) permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -498,108 +488,6 @@ fun PinyinScreen(onBack: (() -> Unit)?, compact: Boolean = false) {
                 roundFinishedAtMillis = null
             },
         )
-    }
-}
-
-@Composable
-private fun RoundActionButton(text: String, onClick: () -> Unit) {
-    Button(onClick = onClick, shape = RoundedCornerShape(28.dp), modifier = Modifier.height(56.dp)) {
-        Text(text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun RoundHint(text: String) {
-    Surface(shape = RoundedCornerShape(28.dp), color = Color.Black.copy(alpha = .55f)) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-        )
-    }
-}
-
-@Composable
-private fun FinishSummary(totalMillis: Long?, onRestart: () -> Unit) {
-    Surface(shape = RoundedCornerShape(28.dp), color = Color.Black.copy(alpha = .72f)) {
-        Column(
-            modifier = Modifier.padding(horizontal = 26.dp, vertical = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text("🎉 全部完成", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            if (totalMillis != null) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = "本轮总用时 ${formatElapsed(totalMillis)}",
-                    color = CorrectAccent,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-            Spacer(Modifier.height(16.dp))
-            RoundActionButton(text = "再来一轮", onClick = onRestart)
-        }
-    }
-}
-
-@Composable
-private fun PinyinCardStack(
-    deck: List<PinyinSyllable>,
-    targetIndex: Int,
-    sliding: Boolean,
-    showFace: Boolean,
-    cardColor: Color,
-    cardTextColor: Color,
-    cardWidth: Dp,
-    cardHeight: Dp,
-    onSlideFinished: () -> Unit,
-) {
-    val progress = remember { Animatable(0f) }
-    LaunchedEffect(sliding) {
-        if (sliding) {
-            progress.animateTo(1f, tween(CardSlideDurationMillis, easing = CardSlideEasing))
-            onSlideFinished()
-        } else {
-            progress.snapTo(0f)
-        }
-    }
-    val slide = if (sliding) progress.value else 0f
-    val stackGap = cardHeight * StackGapRatio
-
-    Box(
-        modifier = Modifier.size(cardWidth, cardHeight),
-        contentAlignment = Alignment.TopStart,
-    ) {
-        val depth = minOf(StackDepth, deck.size - targetIndex)
-        for (lane in (depth - 1) downTo 0) {
-            val syllable = deck[targetIndex + lane]
-            // Only the finished card moves: the ones underneath stay put and hidden behind it,
-            // and simply take its place once it has dissolved.
-            val offsetY = if (lane == 0) {
-                -(slide * cardHeight.value * CardSlideRiseRatio).dp
-            } else {
-                stackGap * lane
-            }
-            val scale = if (lane == 0) 1f else (1f - StackScaleStep * lane).coerceIn(.8f, 1f)
-            val cardAlpha = if (lane == 0) cardFadeAlpha(slide) else 1f
-            PinyinCardFace(
-                syllable = syllable,
-                faceVisible = showFace && lane <= 1,
-                cardColor = if (lane == 0) cardColor else Color(0xFFE8E6EF),
-                textColor = if (lane == 0) cardTextColor else Color.Black.copy(alpha = .45f),
-                cardWidth = cardWidth,
-                cardHeight = cardHeight,
-                modifier = Modifier
-                    .offset(y = offsetY)
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        alpha = cardAlpha
-                        translationY = (cardHeight.toPx() * (1f - scale)) / 2f
-                    },
-            )
-        }
     }
 }
 

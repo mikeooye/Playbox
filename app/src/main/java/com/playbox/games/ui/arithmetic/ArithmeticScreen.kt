@@ -1,23 +1,13 @@
 package com.playbox.games.ui.arithmetic
 
 import android.Manifest
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -26,16 +16,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -45,32 +32,20 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.animation.core.animate
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.compositeOver
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -79,28 +54,40 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.playbox.games.ui.components.AboveAverageAccent
+import com.playbox.games.ui.components.AdvanceDelayMillis
+import com.playbox.games.ui.components.CardCorrectColor
+import com.playbox.games.ui.components.CardFirstWrongColor
+import com.playbox.games.ui.components.CardNeutralColor
+import com.playbox.games.ui.components.CardSecondWrongColor
+import com.playbox.games.ui.components.CorrectAccent
+import com.playbox.games.ui.components.FinishSummary
 import com.playbox.games.ui.components.MicToggle
 import com.playbox.games.ui.components.PlayboxBackground
+import com.playbox.games.ui.components.PlayboxScaffold
+import com.playbox.games.ui.components.RoundActionButton
+import com.playbox.games.ui.components.RoundHint
+import com.playbox.games.ui.components.StackedCardDeck
+import com.playbox.games.ui.components.WrongAccent
 import com.playbox.games.ui.dictation.DictationPhase
 import com.playbox.games.ui.dictation.hasRecordPermission
 import com.playbox.games.ui.dictation.rememberDictationEngine
-import com.playbox.games.ui.components.PlayboxScaffold
 import com.playbox.games.ui.theme.PlayboxTokens
 import com.playbox.games.util.ArithmeticOperator
 import com.playbox.games.util.ArithmeticProblem
-import com.playbox.games.util.ArithmeticQuestionRecord
+import com.playbox.games.util.PracticeQuestionRecord
 import com.playbox.games.util.ArithmeticRange
 import com.playbox.games.util.ArithmeticRangeStep
-import com.playbox.games.util.ArithmeticSessionLog
+import com.playbox.games.util.PassOutcome
+import com.playbox.games.util.PracticeSessionLog
 import com.playbox.games.util.SpokenNumberParser
 import com.playbox.games.util.arithmeticRange
 import com.playbox.games.util.formatClockTime
 import com.playbox.games.util.formatElapsed
 import com.playbox.games.util.newArithmeticFormulaDeck
-import kotlin.math.roundToInt
+import com.playbox.games.util.nextPass
 import kotlinx.coroutines.delay
 
 /** Result ranges offered as one-tap presets; the bounds themselves stay adjustable. */
@@ -117,25 +104,6 @@ private val CardCounts = ArithmeticSettings.AllowedCardCounts
 
 /** A card turns red on the second miss; the child then taps it to move on. */
 private const val MaxWrongAttempts = 2
-
-/** How long a finished card (solved, or missed twice) stays before it slides away. */
-private const val AdvanceDelayMillis = 500L
-
-/** How long a finished card takes to lift off and dissolve. */
-private const val CardSlideDurationMillis = 250
-
-/** How far the card rises before it is gone, as a share of its own height. */
-private const val CardSlideRiseRatio = .2f
-
-/** Share of the slide after which the leaving card starts to fade away. */
-private const val CardFadeStartRatio = .55f
-
-/** The card only dissolves near the end, once it has already lifted most of the way out. */
-private fun cardFadeAlpha(progress: Float): Float =
-    (1f - ((progress - CardFadeStartRatio) / (1f - CardFadeStartRatio))).coerceIn(0f, 1f)
-
-/** Quick off the mark, then settles: the card is yanked rather than eased away. */
-private val CardSlideEasing = CubicBezierEasing(.4f, 0f, .2f, 1f)
 
 /** Guards against the recogniser re-delivering the very same utterance twice. */
 private const val RepeatedUtteranceGuardMillis = 600L
@@ -162,7 +130,6 @@ private const val FormulaRowThicknessRatioCompact = .28f
 
 // How the deck is stacked: the cards behind the top one sit only a hair lower and a hair
 // smaller, so a thin edge is all that shows.
-private const val StackDepth = 3
 private const val StackGapRatio = .010f
 private const val StackScaleStep = .018f
 
@@ -172,26 +139,11 @@ private val CardLayoutReserve = 190.dp
 /** Smallest gap kept between the status line and the bottom of the screen. */
 private val BottomEdgeGuard = 46.dp
 
-private val CardNeutralColor = Color.White
-private val CardFirstWrongColor = Color(0xFFFFB74D)
-private val CardSecondWrongColor = Color(0xFFE53935)
-private val CardCorrectColor = Color(0xFF66D19E)
-private val CorrectAccent = Color(0xFF66D19E)
-private val WrongAccent = Color(0xFFFFB74D)
-private val AboveAverageAccent = Color(0xFFFF8A65)
 private val PausedAccent = Color(0xFFFFB74D)
 private val GuessAccent = Color(0xFF5B67D8)
 
 /** Where a practice round is: not started, waking the recogniser up, running, or done. */
 private enum class RoundPhase { Idle, Preparing, Running, Finished }
-
-private sealed interface AnswerFeedback {
-    val value: Int
-
-    data class Correct(override val value: Int, val elapsedMillis: Long) : AnswerFeedback
-
-    data class Wrong(override val value: Int, val expected: Int, val wrongCount: Int) : AnswerFeedback
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -228,8 +180,10 @@ fun ArithmeticScreen(onBack: (() -> Unit)?, compact: Boolean = false) {
     var advanceSequence by remember { mutableIntStateOf(0) }
     var showSettings by remember { mutableStateOf(false) }
     var showRecords by remember { mutableStateOf(false) }
-    var sessionLog by remember { mutableStateOf(ArithmeticSessionLog.Empty) }
-    var feedback by remember { mutableStateOf<AnswerFeedback?>(null) }
+    var sessionLog by remember { mutableStateOf(PracticeSessionLog.Empty) }
+    // True from a correct answer until the card slides away: that is what colours it green. A miss
+    // only ever tints the card through the wrong-count colours, because the answer is not revealed.
+    var answerCorrect by remember { mutableStateOf(false) }
     var questionStartedAtMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
     // Null until answering really begins: no round, no clock.
     var roundStartedAtMillis by remember { mutableStateOf<Long?>(null) }
@@ -279,7 +233,7 @@ fun ArithmeticScreen(onBack: (() -> Unit)?, compact: Boolean = false) {
     val currentWrongCount = sessionLog.wrongCount(currentSource)
     val cardColor = when {
         roundPhase != RoundPhase.Running -> CardNeutralColor
-        feedback is AnswerFeedback.Correct -> CardCorrectColor
+        answerCorrect -> CardCorrectColor
         currentWrongCount >= MaxWrongAttempts -> CardSecondWrongColor
         currentWrongCount == 1 -> CardFirstWrongColor
         else -> CardNeutralColor
@@ -302,13 +256,13 @@ fun ArithmeticScreen(onBack: (() -> Unit)?, compact: Boolean = false) {
         orderedSources = formulas.indices.toList()
         isRetryPass = false
         retryHintVisible = false
-        sessionLog = ArithmeticSessionLog.Empty
+        sessionLog = PracticeSessionLog.Empty
         targetIndex = 0
         sliding = false
         awaitingAdvance = false
         advanceSequence = 0
         answerRevealed = false
-        feedback = null
+        answerCorrect = false
         heardAnswer = null
         lastJudgedValue = null
         roundFinishedAtMillis = null
@@ -337,8 +291,8 @@ fun ArithmeticScreen(onBack: (() -> Unit)?, compact: Boolean = false) {
         awaitingAdvance = false
         advanceSequence = 0
         answerRevealed = false
-        feedback = null
-        sessionLog = ArithmeticSessionLog.Empty
+        answerCorrect = false
+        sessionLog = PracticeSessionLog.Empty
         heardAnswer = null
         lastJudgedValue = null
         roundFinishedAtMillis = null
@@ -367,23 +321,25 @@ fun ArithmeticScreen(onBack: (() -> Unit)?, compact: Boolean = false) {
      * one more go, and only then does the round end.
      */
     val proceedAfterPass: (Long) -> Unit = { now ->
-        val failed = orderedSources.filter { sessionLog.correctCount(it) == 0 }
-        if (!isRetryPass && failed.isNotEmpty()) {
-            ordered = failed.map { formulas[it] }
-            orderedSources = failed
-            targetIndex = 0
-            isRetryPass = true
-            retryHintVisible = true
-            sliding = false
-            awaitingAdvance = false
-            advanceSequence = 0
-            answerRevealed = false
-            feedback = null
-            heardAnswer = null
-            lastJudgedValue = null
-            questionStartedAtMillis = now
-        } else {
-            finishRound(now)
+        // The retry pass asks the questions that were never right, in deck order.
+        val missed = orderedSources.filter { sessionLog.correctCount(it) == 0 }
+        when (val outcome = nextPass(missed, isRetryPass)) {
+            is PassOutcome.Retry -> {
+                ordered = outcome.indices.map { formulas[it] }
+                orderedSources = outcome.indices
+                targetIndex = 0
+                isRetryPass = true
+                retryHintVisible = true
+                sliding = false
+                awaitingAdvance = false
+                advanceSequence = 0
+                answerRevealed = false
+                answerCorrect = false
+                heardAnswer = null
+                lastJudgedValue = null
+                questionStartedAtMillis = now
+            }
+            PassOutcome.Finished -> finishRound(now)
         }
     }
 
@@ -391,7 +347,7 @@ fun ArithmeticScreen(onBack: (() -> Unit)?, compact: Boolean = false) {
         if (targetIndex < ordered.lastIndex) {
             targetIndex += 1
             answerRevealed = false
-            feedback = null
+            answerCorrect = false
             heardAnswer = null
             lastJudgedValue = null
             awaitingAdvance = false
@@ -410,8 +366,9 @@ fun ArithmeticScreen(onBack: (() -> Unit)?, compact: Boolean = false) {
         val correct = value == problem.answer
         val updatedLog = sessionLog.record(
             index = currentSource,
-            problem = problem,
-            value = value,
+            prompt = problem.expression,
+            answer = problem.answer.toString(),
+            heard = value.toString(),
             correct = correct,
             elapsedMillis = elapsedMillis,
             answeredAtMillis = now,
@@ -421,20 +378,17 @@ fun ArithmeticScreen(onBack: (() -> Unit)?, compact: Boolean = false) {
         lastJudgedValue = null
         lastJudgedAtMillis = 0L
         if (correct) {
-            feedback = AnswerFeedback.Correct(value = value, elapsedMillis = elapsedMillis)
+            answerCorrect = true
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            if (targetIndex < formulas.lastIndex) {
-                // Hold the solved card for a moment so the answer is actually seen.
-                awaitingAdvance = true
-                advanceSequence += 1
-            } else {
-                finishRound(now)
-            }
+            // Hold the solved card for a moment so the answer is actually seen. The last card of a
+            // pass takes this same route, so the pass decision — and with it the retry pass — is
+            // never skipped.
+            awaitingAdvance = true
+            advanceSequence += 1
         } else {
             // A miss only colours the card — the correct answer is deliberately not given away —
             // and the deck moves straight on.
-            val wrongCount = updatedLog.wrongCount(currentSource)
-            feedback = AnswerFeedback.Wrong(value = value, expected = problem.answer, wrongCount = wrongCount)
+            answerCorrect = false
             haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
             awaitingAdvance = true
             advanceSequence += 1
@@ -532,31 +486,6 @@ fun ArithmeticScreen(onBack: (() -> Unit)?, compact: Boolean = false) {
         }
     }
 
-    // TEMP-VERIFICATION-HOOK: answers every card wrong so the retry pass can be driven from adb.
-    LaunchedEffect(roundPhase, targetIndex, awaitingAdvance, sliding, isRetryPass) {
-        if (roundPhase == RoundPhase.Running && !awaitingAdvance && !sliding) {
-            delay(400L)
-            currentProblem?.let { submitAnswer(it.answer + 1) }
-        }
-    }
-
-    // TEMP-VERIFICATION-HOOK: feeds every answer in two pieces, like a drawn out number does.
-    LaunchedEffect(roundPhase, targetIndex, awaitingAdvance, sliding, isRetryPass) {
-        if (roundPhase == RoundPhase.Running && !awaitingAdvance && !sliding) {
-            delay(300L)
-            currentProblem?.let { problem ->
-                val digits = problem.answer.toString()
-                if (digits.length >= 2) {
-                    handleSpokenAnswers(listOf(digits.take(1)))
-                    delay(250L)
-                    handleSpokenAnswers(listOf(digits.drop(1)))
-                } else {
-                    handleSpokenAnswers(listOf(digits))
-                }
-            }
-        }
-    }
-
     PlayboxBackground(dark = true) {
         PlayboxScaffold(
             title = "",
@@ -612,20 +541,42 @@ fun ArithmeticScreen(onBack: (() -> Unit)?, compact: Boolean = false) {
                     cardHeight = cardWidth * CardAspectRatio
                 }
                 Box(contentAlignment = Alignment.Center) {
-                    FormulaCardStack(
-                        formulas = ordered,
+                    StackedCardDeck(
+                        items = ordered,
                         targetIndex = targetIndex,
                         sliding = sliding,
-                        showFace = roundPhase == RoundPhase.Running,
-                        answerRevealed = answerRevealed,
-                        heardAnswer = heardAnswer,
-                        cardColor = cardColor,
-                        cardTextColor = cardTextColor,
                         cardWidth = cardWidth,
                         cardHeight = cardHeight,
-                        compact = compact,
+                        stackGapRatio = StackGapRatio,
+                        scaleStep = StackScaleStep,
+                        frontColor = cardColor,
+                        frontTextColor = cardTextColor,
+                        showFace = roundPhase == RoundPhase.Running,
                         onSlideFinished = onSlideFinished,
-                    )
+                    ) { formula, style, modifier ->
+                        FormulaCardFace(
+                            formula = formula,
+                            faceVisible = style.faceVisible,
+                            answerText = when {
+                                style.lane > 0 -> "?"
+                                answerRevealed -> formula.answer.toString()
+                                heardAnswer != null -> heardAnswer.toString()
+                                else -> "?"
+                            },
+                            answerColor = when {
+                                style.lane > 0 -> Color.Black.copy(alpha = .3f)
+                                answerRevealed -> cardTextColor
+                                heardAnswer != null -> GuessAccent
+                                else -> cardTextColor.copy(alpha = .3f)
+                            },
+                            textColor = style.textColor,
+                            cardColor = style.color,
+                            cardWidth = cardWidth,
+                            cardHeight = cardHeight,
+                            compact = compact,
+                            modifier = modifier,
+                        )
+                    }
                     when (roundPhase) {
                         RoundPhase.Idle -> RoundActionButton(text = "开始", onClick = {
                             if (!hasMicPermission) permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
@@ -685,58 +636,10 @@ fun ArithmeticScreen(onBack: (() -> Unit)?, compact: Boolean = false) {
             roundFinishedAtMillis = roundFinishedAtMillis,
             onDismiss = { showRecords = false },
             onReset = {
-                sessionLog = ArithmeticSessionLog.Empty
+                sessionLog = PracticeSessionLog.Empty
                 roundStartedAtMillis = null
                 roundFinishedAtMillis = null
             },
-        )
-    }
-}
-
-/** Big, obvious call to action drawn on top of the deck (start / play again). */
-@Composable
-private fun RoundActionButton(text: String, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        shape = RoundedCornerShape(28.dp),
-        modifier = Modifier.height(56.dp),
-    ) {
-        Text(text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-    }
-}
-
-/** Wraps up a finished round right on the card: the round total and a way to go again. */
-@Composable
-private fun FinishSummary(totalMillis: Long?, onRestart: () -> Unit) {
-    Surface(shape = RoundedCornerShape(28.dp), color = Color.Black.copy(alpha = .72f)) {
-        Column(
-            modifier = Modifier.padding(horizontal = 26.dp, vertical = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text("🎉 全部完成", color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            if (totalMillis != null) {
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = "本轮总用时 ${formatElapsed(totalMillis)}",
-                    color = CorrectAccent,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-            Spacer(Modifier.height(16.dp))
-            RoundActionButton(text = "再来一轮", onClick = onRestart)
-        }
-    }
-}
-
-@Composable
-private fun RoundHint(text: String) {
-    Surface(shape = RoundedCornerShape(28.dp), color = Color.Black.copy(alpha = .55f)) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
         )
     }
 }
@@ -746,89 +649,6 @@ private fun RoundHint(text: String) {
  * question is finished the top card sweeps straight up and out, and the cards underneath move up
  * one place.
  */
-@Composable
-private fun FormulaCardStack(
-    formulas: List<ArithmeticProblem>,
-    targetIndex: Int,
-    sliding: Boolean,
-    showFace: Boolean,
-    answerRevealed: Boolean,
-    heardAnswer: Int?,
-    cardColor: Color,
-    cardTextColor: Color,
-    cardWidth: Dp,
-    cardHeight: Dp,
-    compact: Boolean,
-    onSlideFinished: () -> Unit,
-) {
-    val progress = remember { Animatable(0f) }
-    LaunchedEffect(sliding) {
-        if (sliding) {
-            progress.animateTo(
-                targetValue = 1f,
-                animationSpec = tween(CardSlideDurationMillis, easing = CardSlideEasing),
-            )
-            onSlideFinished()
-        } else {
-            progress.snapTo(0f)
-        }
-    }
-    // The progress is only meaningful while a card is actually sweeping away; reading it as zero
-    // otherwise keeps the newly promoted card from flashing off-screen for a frame.
-    val slide = if (sliding) progress.value else 0f
-    val stackGap = cardHeight * StackGapRatio
-
-    Box(
-        modifier = Modifier.size(cardWidth, cardHeight),
-        contentAlignment = Alignment.TopStart,
-    ) {
-        val depth = minOf(StackDepth, formulas.size - targetIndex)
-        for (lane in (depth - 1) downTo 0) {
-            val index = targetIndex + lane
-            val formula = formulas[index]
-            // Only the finished card moves: the ones underneath stay put and hidden behind it,
-            // and simply take its place once it has dissolved.
-            val offsetY = if (lane == 0) {
-                -(slide * cardHeight.value * CardSlideRiseRatio).dp
-            } else {
-                stackGap * lane
-            }
-            val cardAlpha = if (lane == 0) cardFadeAlpha(slide) else 1f
-            val scale = if (lane == 0) 1f else (1f - StackScaleStep * lane).coerceIn(.8f, 1f)
-            val backColor = if (lane == 0) cardColor else Color(0xFFE8E6EF)
-            FormulaCardFace(
-                formula = formula,
-                faceVisible = showFace && lane <= 1,
-                answerText = when {
-                    lane > 0 -> "?"
-                    answerRevealed -> formula.answer.toString()
-                    heardAnswer != null -> heardAnswer.toString()
-                    else -> "?"
-                },
-                answerColor = when {
-                    lane > 0 -> Color.Black.copy(alpha = .3f)
-                    answerRevealed -> cardTextColor
-                    heardAnswer != null -> GuessAccent
-                    else -> cardTextColor.copy(alpha = .3f)
-                },
-                textColor = if (lane == 0) cardTextColor else Color.Black.copy(alpha = .45f),
-                cardColor = backColor,
-                cardWidth = cardWidth,
-                cardHeight = cardHeight,
-                compact = compact,
-                modifier = Modifier
-                    .offset(y = offsetY)
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        alpha = cardAlpha
-                        translationY = (cardHeight.toPx() * (1f - scale)) / 2f
-                    },
-            )
-        }
-    }
-}
-
 @Composable
 private fun FormulaCardFace(
     formula: ArithmeticProblem,
@@ -1104,7 +924,7 @@ private fun StepButton(text: String, onClick: () -> Unit, modifier: Modifier = M
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ArithmeticRecordsSheet(
-    log: ArithmeticSessionLog,
+    log: PracticeSessionLog,
     formulas: List<ArithmeticProblem>,
     roundStartedAtMillis: Long?,
     roundFinishedAtMillis: Long?,
@@ -1180,7 +1000,7 @@ private fun ArithmeticRecordsSheet(
 private fun QuestionRecordRow(
     index: Int,
     problem: ArithmeticProblem,
-    record: ArithmeticQuestionRecord?,
+    record: PracticeQuestionRecord?,
     averageMillis: Long?,
     expanded: Boolean,
     onToggle: () -> Unit,
@@ -1263,7 +1083,7 @@ private fun QuestionRecordRow(
                     Spacer(Modifier.height(4.dp))
                     Text(
                         text = "第 ${attemptIndex + 1} 次 · " +
-                            (if (attempt.correct) "答对" else "答错（说了 ${attempt.value}）") +
+                            (if (attempt.correct) "答对" else "答错（说了 ${attempt.heard}）") +
                             " · 用时 ${formatElapsed(attempt.elapsedMillis)}" +
                             " · ${formatClockTime(attempt.answeredAtMillis)}",
                         style = MaterialTheme.typography.labelMedium,

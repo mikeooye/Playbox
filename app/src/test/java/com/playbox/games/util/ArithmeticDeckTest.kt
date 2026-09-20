@@ -7,35 +7,6 @@ import org.junit.Test
 
 class ArithmeticDeckTest {
     @Test
-    fun generatedRoundHasRequestedUniqueProblems() {
-        val deck = newArithmeticDeck(50, Random(12))
-
-        assertEquals(50, deck.size)
-        assertEquals(deck.size, deck.distinct().size)
-    }
-
-    @Test
-    fun everyProblemStaysWithinZeroAndTwenty() {
-        assertTrue(arithmeticProblemBank.all { problem ->
-            problem.left in 0..20 && problem.right in 0..20 && problem.answer in 0..20
-        })
-    }
-
-    @Test
-    fun additionDoesNotContainReversedDuplicates() {
-        val additions = arithmeticProblemBank.filter { it.operator == ArithmeticOperator.Add }
-        assertTrue(additions.all { it.left <= it.right })
-    }
-
-    @Test
-    fun generatedRoundBalancesAdditionAndSubtraction() {
-        val deck = newArithmeticDeck(20, Random(9))
-
-        assertEquals(10, deck.count { it.operator == ArithmeticOperator.Add })
-        assertEquals(10, deck.count { it.operator == ArithmeticOperator.Subtract })
-    }
-
-    @Test
     fun generatedProblemsRespectRangeAndSelectedOperators() {
         val operators = ArithmeticOperator.entries.toSet()
         repeat(500) { seed ->
@@ -79,6 +50,89 @@ class ArithmeticDeckTest {
             assertTrue(problem.left >= problem.right)
             assertTrue(problem.answer in 1..20)
             assertTrue(problem.left <= 20)
+        }
+    }
+
+    /** `n − 0` teaches nothing, so the subtrahend is always a real number. */
+    @Test
+    fun subtractionNeverAsksForAZeroSubtrahend() {
+        for (range in listOf(1 to 20, 10 to 20, 0 to 50)) {
+            repeat(500) { seed ->
+                val problem = randomArithmeticProblem(
+                    range.first,
+                    range.second,
+                    setOf(ArithmeticOperator.Subtract),
+                    Random(seed),
+                )
+                assertTrue("$range right=${problem.right}", problem.right >= 1)
+                assertTrue(problem.answer in range.first..range.second)
+                assertTrue(problem.left <= range.second)
+            }
+        }
+    }
+
+    @Test
+    fun additionUsesTwoNonZeroAddendsWheneverTheAnswerAllowsIt() {
+        repeat(1000) { seed ->
+            val problem = randomArithmeticProblem(1, 20, setOf(ArithmeticOperator.Add), Random(seed))
+            if (problem.answer >= 2) {
+                assertTrue("${problem.left}+${problem.right}", problem.left >= 1 && problem.right >= 1)
+            }
+            assertEquals(problem.answer, problem.left + problem.right)
+        }
+    }
+
+    /** Restricting the answer must not shrink the deck to a corner of the range. */
+    @Test
+    fun additionStillReachesBothEndsOfTheRange() {
+        val answers = (0 until 1000).map { seed ->
+            randomArithmeticProblem(1, 20, setOf(ArithmeticOperator.Add), Random(seed)).answer
+        }.toSet()
+
+        assertEquals((1..20).toSet(), answers)
+    }
+
+    /** `n × 1` is not worth a card, so only answers that really factorise are drawn. */
+    @Test
+    fun multiplicationNeverUsesOneAsAFactorWhenTheRangeHasAFactorableAnswer() {
+        repeat(1000) { seed ->
+            val problem = randomArithmeticProblem(1, 20, setOf(ArithmeticOperator.Multiply), Random(seed))
+            assertTrue("${problem.left}×${problem.right}", problem.left >= 2 && problem.right >= 2)
+            assertEquals(problem.answer, problem.left * problem.right)
+        }
+    }
+
+    /** A range with nothing to factorise (1~3) still has to yield a correct, in-range problem. */
+    @Test
+    fun multiplicationFallsBackOnARangeWithoutFactorableAnswers() {
+        repeat(300) { seed ->
+            val problem = randomArithmeticProblem(1, 3, setOf(ArithmeticOperator.Multiply), Random(seed))
+            assertTrue("answer=${problem.answer}", problem.answer in 1..3)
+            assertTrue(problem.left <= 3 && problem.right <= 3)
+            assertEquals(problem.answer, problem.left * problem.right)
+        }
+    }
+
+    @Test
+    fun divisionAvoidsOneAsADivisorWhenTheRangeAllowsIt() {
+        repeat(1000) { seed ->
+            val problem = randomArithmeticProblem(1, 20, setOf(ArithmeticOperator.Divide), Random(seed))
+            assertTrue("divisor=${problem.right}", problem.right >= 2)
+            assertEquals(0, problem.left % problem.right)
+            assertEquals(problem.answer, problem.left / problem.right)
+        }
+    }
+
+    /** A narrow high range cannot avoid ÷ 1, but it must stay exact and inside the range. */
+    @Test
+    fun divisionStaysExactOnANarrowHighRange() {
+        repeat(500) { seed ->
+            val problem = randomArithmeticProblem(15, 20, setOf(ArithmeticOperator.Divide), Random(seed))
+            assertTrue("answer=${problem.answer}", problem.answer in 15..20)
+            assertTrue("dividend=${problem.left}", problem.left in 15..20)
+            assertTrue(problem.right >= 1)
+            assertEquals(0, problem.left % problem.right)
+            assertEquals(problem.answer, problem.left / problem.right)
         }
     }
 
