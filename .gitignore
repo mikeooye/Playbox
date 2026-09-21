@@ -9,6 +9,9 @@
 .cxx
 app/build
 
+# 发布用的安装包暂存目录（tools/release.sh 的产物）
+/dist
+
 # Release signing material - keep local only, never commit
 keystore.properties
 keystore/

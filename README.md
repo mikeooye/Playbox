@@ -45,6 +45,27 @@
   （数字：12 个必须识别正确、4 句非数字必须被过滤；拼音：4 个音节必须落到对应卡片。
   音频由 `tools/generate-speech-samples.sh` 生成，需要 macOS）
 
+### 发布新版本（维护者）
+
+带签名的安装包只能在保存了签名文件的机器上构建：`keystore.properties` 和
+`keystore/playbox-release.jks` 刻意不进版本库（见 `.gitignore`），所以发布这一步
+必须回到有这两份文件的机器上执行。其余改动可以在任何机器上写、提交、打 tag。
+
+```bash
+# 1. 在 app/build.gradle.kts 里改好 versionCode / versionName，提交并推送 tag
+# 2. 在有 keystore 的机器上，一条命令完成构建 + 签名校验 + 上传到该 tag 的 Release
+GH_TOKEN=ghp_xxx tools/release.sh
+```
+
+脚本从 `versionName` 推导 tag（`1.1.0` → `v1.1.0`），执行 `:app:assembleRelease`，
+再用 `apksigner` 校验签名、核对包内 `versionName`，产出 `dist/Playbox-<版本>.apk`
+后上传为附件 `Playbox-<版本>.apk`。Release 不存在会自动创建（更新说明取自提交记录），
+同名附件先删除再上传，因此脚本可以重复执行，构建和上传可以分两步走。
+
+常用选项：`--no-upload` 只构建、`--no-build` 只上传已有产物、`--draft` 建草稿、
+`--notes "…"` 自定义说明、`v1.1.0` 指定 tag。上传用的 token 也可以先
+`gh auth login`，脚本会自动读取。
+
 ## 下载安装
 
 在 [Releases](https://github.com/mikeooye/Playbox/releases) 页面下载最新的 `Playbox-<版本>.apk` 直接安装即可，无需 Google Play。支持 Android 7.0（API 24）及以上。
